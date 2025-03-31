@@ -1,30 +1,30 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 )
 
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	http.HandleFunc("/", getRoot)
 
-	// Uncomment this block to pass the first stage
-	//
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
+	err := http.ListenAndServe(":4221", nil)
+	if errors.Is(err, http.ErrServerClosed) {
+		fmt.Printf("Server closed\n")
+	} else if err != nil {
+		fmt.Printf("Error starting server: %s\n", err)
 		os.Exit(1)
 	}
+}
 
-	_, err = l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
+func getRoot(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("got / request\n")
+	io.WriteString(w, "HTTP/1.1 200 OK\r\n\r\n")
 }
