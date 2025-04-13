@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +15,12 @@ type Request struct {
 	Path     string
 	Protocol string
 	Header   map[string]string
+}
+
+type Response struct {
+	StatusLine string
+	Header     map[string]string
+	Body       string
 }
 
 // Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
@@ -45,11 +52,19 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	request, err := readRequest(reader)
 
-	response := "HTTP/1.1 200 OK\r\n\r\n"
-	if request.Path != "/" {
-		response = "HTTP/1.1 404 Not Found\r\n\r\n"
+	response, err := createResponse(request)
+	if err != nil {
+		fmt.Println("Error creating response:", err.Error())
+		return
 	}
-	_, err = io.WriteString(conn, response)
+
+	formattedResponse, err := formatResponse(response)
+	if err != nil {
+		fmt.Println("Error formatting response:", err.Error())
+		return
+	}
+
+	_, err = io.WriteString(conn, formattedResponse)
 
 	if err != nil {
 		fmt.Println("Error sending response:", err.Error())
@@ -95,4 +110,51 @@ func readRequest(reader *bufio.Reader) (*Request, error) {
 	}
 
 	return request, nil
+}
+
+func createResponse(request *Request) (*Response, error) {
+	resp := &Response{
+		StatusLine: "HTTP/1.1 404 Not Found",
+		Header:     make(map[string]string),
+		Body:       "",
+	}
+
+	if request.Path == "/" {
+		resp.StatusLine = "HTTP/1.1 200 OK"
+	} else if strings.HasPrefix(request.Path, "/echo/") {
+		body, _ := strings.CutPrefix(request.Path, "/echo/")
+
+		resp.StatusLine = "HTTP/1.1 200 OK"
+
+		resp.Header["Content-Type"] = "text/plain"
+		resp.Header["Content-Length"] = strconv.Itoa(len(body))
+		resp.Body = body
+	}
+
+	return resp, nil
+}
+
+func formatResponse(response *Response) (string, error) {
+	var sb strings.Builder
+	sep := "\r\n"
+
+	/* Status line */
+	sb.Write([]byte(response.StatusLine))
+	sb.Write([]byte(sep))
+
+	/* Header */
+	if len(response.Header) != 0 {
+		for key, value := range response.Header {
+			sb.Write([]byte(key))
+			sb.Write([]byte(": "))
+			sb.Write([]byte(value))
+			sb.Write([]byte(sep))
+		}
+	}
+	sb.Write([]byte(sep))
+
+	/* Body */
+	sb.Write([]byte(response.Body))
+
+	return sb.String(), nil
 }
