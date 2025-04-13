@@ -106,7 +106,7 @@ func readRequest(reader *bufio.Reader) (*Request, error) {
 			break
 		}
 
-		request.Header[key] = value
+		request.Header[key] = strings.TrimSpace(value)
 	}
 
 	return request, nil
@@ -123,6 +123,14 @@ func createResponse(request *Request) (*Response, error) {
 		resp.StatusLine = "HTTP/1.1 200 OK"
 	} else if strings.HasPrefix(request.Path, "/echo/") {
 		body, _ := strings.CutPrefix(request.Path, "/echo/")
+
+		resp.StatusLine = "HTTP/1.1 200 OK"
+
+		resp.Header["Content-Type"] = "text/plain"
+		resp.Header["Content-Length"] = strconv.Itoa(len(body))
+		resp.Body = body
+	} else if strings.HasPrefix(request.Path, "/user-agent") {
+		body, _ := request.Header["User-Agent"]
 
 		resp.StatusLine = "HTTP/1.1 200 OK"
 
