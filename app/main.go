@@ -6,16 +6,21 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 )
+
+type Request struct {
+	Method   string
+	Path     string
+	Protocol string
+	Header   map[string]string
+}
 
 // Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
-
 	l, err := net.Listen("tcp", "127.0.0.1:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -38,18 +43,56 @@ func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil || line == "\r\n" {
-			break
-		}
-	}
+	request, err := readRequest(reader)
 
 	response := "HTTP/1.1 200 OK\r\n\r\n"
-	_, err := io.WriteString(conn, response)
+	if request.Path != "/" {
+		response = "HTTP/1.1 404 Not Found\r\n\r\n"
+	}
+	_, err = io.WriteString(conn, response)
 
 	if err != nil {
 		fmt.Println("Error sending response:", err.Error())
 		return
 	}
+}
+
+func readRequest(reader *bufio.Reader) (*Request, error) {
+	requestLine, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+
+	requestLineParts := strings.Split(strings.TrimSpace(requestLine), " ")
+	if len(requestLineParts) != 3 {
+		return nil, err
+	}
+
+	request := &Request{
+		Method:   requestLineParts[0],
+		Path:     requestLineParts[1],
+		Protocol: requestLineParts[2],
+		Header:   make(map[string]string),
+	}
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			break
+		}
+
+		request.Header[key] = value
+	}
+
+	return request, nil
 }
