@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -23,11 +23,16 @@ type Response struct {
 	Body       string
 }
 
+var router = NewRouter()
+
 // Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
 
 func main() {
+	flag.StringVar(&FileDirectory, "directory", "/", "File directory")
+	flag.Parse()
+
 	l, err := net.Listen("tcp", "127.0.0.1:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -113,33 +118,7 @@ func readRequest(reader *bufio.Reader) (*Request, error) {
 }
 
 func createResponse(request *Request) (*Response, error) {
-	resp := &Response{
-		StatusLine: "HTTP/1.1 404 Not Found",
-		Header:     make(map[string]string),
-		Body:       "",
-	}
-
-	if request.Path == "/" {
-		resp.StatusLine = "HTTP/1.1 200 OK"
-	} else if strings.HasPrefix(request.Path, "/echo/") {
-		body, _ := strings.CutPrefix(request.Path, "/echo/")
-
-		resp.StatusLine = "HTTP/1.1 200 OK"
-
-		resp.Header["Content-Type"] = "text/plain"
-		resp.Header["Content-Length"] = strconv.Itoa(len(body))
-		resp.Body = body
-	} else if strings.HasPrefix(request.Path, "/user-agent") {
-		body, _ := request.Header["User-Agent"]
-
-		resp.StatusLine = "HTTP/1.1 200 OK"
-
-		resp.Header["Content-Type"] = "text/plain"
-		resp.Header["Content-Length"] = strconv.Itoa(len(body))
-		resp.Body = body
-	}
-
-	return resp, nil
+	return router.HandleRequest(request)
 }
 
 func formatResponse(response *Response) (string, error) {
