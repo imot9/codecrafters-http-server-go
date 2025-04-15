@@ -69,6 +69,16 @@ func handleEcho(request *Request) (*Response, error) {
 func handleFiles(request *Request) (*Response, error) {
 	body, _ := strings.CutPrefix(request.Path, "/files/")
 
+	if strings.EqualFold(request.Method, "POST") {
+		file, _ := os.Create(filepath.Join(FileDirectory, body))
+		file.Write([]byte(request.Body))
+		return &Response{
+			StatusLine: "HTTP/1.1 201 Created",
+			Header:     make(map[string]string),
+			Body:       "",
+		}, nil
+	}
+
 	content, err := os.ReadFile(filepath.Join(FileDirectory, body))
 	if err != nil {
 		return &Response{

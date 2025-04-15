@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -15,6 +16,7 @@ type Request struct {
 	Path     string
 	Protocol string
 	Header   map[string]string
+	Body     string
 }
 
 type Response struct {
@@ -93,6 +95,7 @@ func readRequest(reader *bufio.Reader) (*Request, error) {
 		Path:     requestLineParts[1],
 		Protocol: requestLineParts[2],
 		Header:   make(map[string]string),
+		Body:     "",
 	}
 
 	for {
@@ -112,6 +115,18 @@ func readRequest(reader *bufio.Reader) (*Request, error) {
 		}
 
 		request.Header[key] = strings.TrimSpace(value)
+	}
+
+	if contentLengthStr, ok := request.Header["Content-Length"]; ok {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+
+		if err == nil && contentLength > 0 {
+			body := make([]byte, contentLength)
+			_, err = io.ReadFull(reader, body)
+			if err == nil {
+				request.Body = string(body)
+			}
+		}
 	}
 
 	return request, nil
