@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -99,19 +100,44 @@ func handleFiles(request *Request) (*Response, error) {
 }
 
 func (r *Router) HandleRequest(request *Request) (*Response, error) {
+	var response *Response
+	if handler, err := r.isValidRequest(request); err != nil {
+		response = &Response{
+			StatusLine: "HTTP/1.1 404 Not Found",
+			Header:     make(map[string]string),
+			Body:       "",
+		}
+	} else {
+		response, _ = handler(request)
+		if encoding, has := hasEncoding(request); has {
+			response.Header["Content-Encoding"] = encoding
+		}
+	}
+
+	return response, nil
+}
+
+func (r *Router) isValidRequest(request *Request) (HandlerFunc, error) {
 	if handler, ok := r.routes[request.Path]; ok {
-		return handler(request)
+		return handler, nil
 	}
 
 	for _, route := range r.prefixRoutes {
 		if strings.HasPrefix(request.Path, route.Prefix) {
-			return route.Handler(request)
+			return route.Handler, nil
 		}
 	}
 
-	return &Response{
-		StatusLine: "HTTP/1.1 404 Not Found",
-		Header:     make(map[string]string),
-		Body:       "",
-	}, nil
+	return nil, errors.New("No endpoint")
+}
+
+func hasEncoding(request *Request) (string, bool) {
+	if encoding, ok := request.Header["Accept-Encoding"]; ok && isValidEncoding(encoding) {
+		return encoding, true
+	}
+	return "", false
+}
+
+func isValidEncoding(encoding string) bool {
+	return encoding == "gzip"
 }
