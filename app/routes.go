@@ -132,8 +132,17 @@ func (r *Router) isValidRequest(request *Request) (HandlerFunc, error) {
 }
 
 func hasEncoding(request *Request) (string, bool) {
-	if encoding, ok := request.Header["Accept-Encoding"]; ok && isValidEncoding(encoding) {
-		return encoding, true
+	if encodings, ok := request.Header["Accept-Encoding"]; ok {
+		var validEncodings []string
+		for encoding := range strings.SplitSeq(encodings, ",") {
+			encoding = strings.TrimSpace(encoding)
+
+			if isValidEncoding(encoding) {
+				validEncodings = append(validEncodings, encoding)
+			}
+		}
+
+		return strings.Join(validEncodings, ", "), true
 	}
 	return "", false
 }
