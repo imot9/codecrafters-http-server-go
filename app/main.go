@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Request struct {
@@ -24,6 +26,8 @@ type Response struct {
 	Header     map[string]string
 	Body       string
 }
+
+const CONN_MAX_TIMEOUT = 5 * time.Second
 
 var router = NewRouter()
 
@@ -57,25 +61,47 @@ func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
-	request, err := readRequest(reader)
 
-	response, err := createResponse(request)
-	if err != nil {
-		fmt.Println("Error creating response:", err.Error())
-		return
-	}
+	for {
+		if err := conn.SetReadDeadline(time.Now().Add(CONN_MAX_TIMEOUT)); err != nil {
+			fmt.Println("Error setting read deadline:", err.Error())
+			return
+		}
 
-	formattedResponse, err := formatResponse(response)
-	if err != nil {
-		fmt.Println("Error formatting response:", err.Error())
-		return
-	}
+		request, err := readRequest(reader)
+		if err != nil {
+			if err == io.EOF || errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				return
+			}
+			fmt.Println("Error reading request:", err.Error())
+			return
+		}
 
-	_, err = io.WriteString(conn, formattedResponse)
+		response, err := createResponse(request)
+		if err != nil {
+			fmt.Println("Error creating response:", err.Error())
+			return
+		}
 
-	if err != nil {
-		fmt.Println("Error sending response:", err.Error())
-		return
+		formattedResponse, err := formatResponse(response)
+		if err != nil {
+			fmt.Println("Error formatting response:", err.Error())
+			return
+		}
+
+		_, err = io.WriteString(conn, formattedResponse)
+
+		if err != nil {
+			fmt.Println("Error sending response:", err.Error())
+			return
+		}
+
+		if request.Header["Connection"] == "close" {
+			conn.Close()
+		}
 	}
 }
 
