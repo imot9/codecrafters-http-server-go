@@ -114,6 +114,9 @@ func (r *Router) HandleRequest(request *Request) (*Response, error) {
 		if encoding, has := hasEncoding(request); has {
 			encode(response, encoding)
 		}
+		if connection, exists := request.Header["Connection"]; exists && connection == "close" {
+			response.Header["Connection"] = connection
+		}
 	}
 
 	return response, nil

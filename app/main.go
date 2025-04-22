@@ -91,7 +91,7 @@ func handleConnection(conn net.Conn) {
 			fmt.Println("Error formatting response:", err.Error())
 			return
 		}
-
+		fmt.Println(formattedResponse)
 		_, err = io.WriteString(conn, formattedResponse)
 
 		if err != nil {
