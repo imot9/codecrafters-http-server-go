@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"os"
 	"path/filepath"
@@ -110,7 +112,7 @@ func (r *Router) HandleRequest(request *Request) (*Response, error) {
 	} else {
 		response, _ = handler(request)
 		if encoding, has := hasEncoding(request); has {
-			response.Header["Content-Encoding"] = encoding
+			encode(response, encoding)
 		}
 	}
 
@@ -149,4 +151,15 @@ func hasEncoding(request *Request) (string, bool) {
 
 func isValidEncoding(encoding string) bool {
 	return encoding == "gzip"
+}
+
+func encode(response *Response, encoding string) {
+	var buf bytes.Buffer
+	writer := gzip.NewWriter(&buf)
+	writer.Write([]byte(response.Body))
+	writer.Close()
+
+	response.Body = string(buf.Bytes())
+	response.Header["Content-Encoding"] = encoding
+	response.Header["Content-Length"] = strconv.Itoa(len(response.Body))
 }
